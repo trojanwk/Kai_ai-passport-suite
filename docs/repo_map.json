@@ -297,6 +297,95 @@
         ],
         "unsampled_paths": []
       }
+    },
+    {
+      "id": "companion_bluetooth_identity",
+      "name": "Mac companion Bluetooth identity",
+      "path": "scripts/passport_device.py",
+      "kind": "desktop_connectivity",
+      "purpose": "Connect renamed paired badges and restore dictation after page changes, reusing subscriptions on the same BLE client and retrying transient setup failures.",
+      "module_tags": [
+        "macos",
+        "bluetooth",
+        "pairing"
+      ],
+      "entry_files": [
+        "scripts/passport_assistant.py",
+        "scripts/passport_device.py",
+        "scripts/passport_computer_link.py",
+        "scripts/passport_dictation.py",
+        "scripts/passport_services.py"
+      ],
+      "key_symbols": [
+        "validate_config",
+        "Radio",
+        "matches_passport",
+        "connected_passport"
+      ],
+      "child_modules": [],
+      "first_read_files": [
+        "scripts/passport_assistant.py",
+        "scripts/passport_device.py",
+        "scripts/passport_computer_link.py",
+        "scripts/passport_dictation.py",
+        "scripts/passport_services.py"
+      ],
+      "then_check_files": [
+        "scripts/passport_paths.py",
+        "scripts/build_passport_assistant.py"
+      ],
+      "upstream_dependencies": [],
+      "downstream_dependencies": [],
+      "out_of_scope_dependencies": [
+        "CoreBluetooth system pairing and user permissions",
+        "On-device firmware and its advertised name"
+      ],
+      "related_tests": [
+        "tests/test_passport_bluetooth_identity.py",
+        "tests/test_passport_assistant.py",
+        "tests/test_passport_bluetooth_dictation.py",
+        "tests/test_passport_radio_subscriptions.py",
+        "tests/test_passport_dictation_reentry.py",
+        "tests/test_passport_link_health.py"
+      ],
+      "related_configs": [],
+      "risk_flags": [
+        "bluetooth_name_is_mutable",
+        "pinned_device_identity",
+        "credentials_must_remain_private"
+      ],
+      "edit_risk": "medium",
+      "blast_radius": [
+        "Mac companion BLE discovery and saved pairing validation"
+      ],
+      "pitfall_ids": [
+        "P04"
+      ],
+      "minimum_regression": [
+        ".venv/bin/python -m unittest tests/test_passport_radio_subscriptions.py tests/test_passport_dictation_reentry.py tests/test_passport_link_health.py tests/test_passport_bluetooth_identity.py tests/test_passport_assistant.py tests/test_passport_bluetooth_dictation.py tests/test_passport_services.py -v"
+      ],
+      "routing_confidence": "high",
+      "scope_flags": [
+        "desktop_only",
+        "no_firmware_changes"
+      ],
+      "grounding": {
+        "fact_status": "grounded",
+        "evidence": [
+          "scripts/passport_assistant.py",
+          "scripts/passport_device.py",
+          "scripts/passport_computer_link.py",
+          "tests/test_passport_bluetooth_identity.py",
+          "tests/test_passport_assistant.py",
+          "tests/test_passport_bluetooth_dictation.py",
+          "scripts/passport_dictation.py",
+          "scripts/passport_services.py",
+          "tests/test_passport_radio_subscriptions.py",
+          "tests/test_passport_dictation_reentry.py",
+          "tests/test_passport_link_health.py"
+        ],
+        "unsampled_paths": []
+      }
     }
   ]
 }

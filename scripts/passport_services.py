@@ -366,7 +366,12 @@ class Services:
                 self.guard_context=context;threading.Thread(target=self.guard_loop,args=(context,),daemon=True).start()
             return self.guard.state()
         if app==2:
-            if op=='enter': self.dictation_ble.open((app,request['generation']))
+            if op=='enter':
+                from bleak.exc import BleakError
+                for attempt in range(3):
+                    try:self.dictation_ble.open((app,request['generation']));break
+                    except (ConnectionError,TimeoutError,BleakError):
+                        if attempt==2 or self.requested_context!=(app,request['generation']) or self.stop.wait(.25*(attempt+1)):raise
             return self.dictation_ble.status()
         if app==1:
             if self.cloud is not None and not self.hello_ready():

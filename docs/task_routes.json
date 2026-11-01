@@ -160,6 +160,41 @@
         "subtree_only",
         "host_and_build_evidence_only"
       ]
+    },
+    {
+      "id": "R04",
+      "task_type": "mac_companion_bluetooth_pairing",
+      "match_keywords": [
+        "Bluetooth identity",
+        "bluetooth_id",
+        "paired Passport",
+        "passport_device.py",
+        "passport_assistant.py",
+        "蓝牙连接",
+        "助手连接"
+      ],
+      "negative_keywords": [],
+      "route_priority": 90,
+      "first_read_modules": [
+        "companion_bluetooth_identity"
+      ],
+      "expand_to_modules": [],
+      "pitfall_ids": [
+        "P04"
+      ],
+      "expand_search_codes": [
+        "read_reference_map_first"
+      ],
+      "stop_and_verify_codes": [
+        "run_minimum_regression"
+      ],
+      "fact_check_codes": [
+        "read_reference_map_first"
+      ],
+      "scope_flags": [
+        "desktop_only",
+        "no_firmware_changes"
+      ]
     }
   ]
 }

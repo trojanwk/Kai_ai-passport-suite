@@ -14,6 +14,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 import certifi
 
 from passport_identity import paired_port
@@ -30,6 +31,9 @@ def validate_config(config):
         raise ValueError('invalid device credential')
     # Imported development settings must not dictate executable paths or ports.
     result={k:config[k] for k in ('mac','api_token','xiaozhi') if k in config}
+    if 'bluetooth_id' in config:
+        try:result['bluetooth_id']=str(uuid.UUID(config['bluetooth_id']))
+        except (ValueError,TypeError,AttributeError):raise ValueError('invalid Bluetooth identity') from None
     result.update(http_forward=18763,audio_forward=19548,ui_port=8768)
     return result
 
@@ -170,10 +174,11 @@ class Controller:
         if self.device:
             transport=getattr(self.device,'transport','none')
             label='USB' if transport=='usb' else '蓝牙' if transport=='ble' else '等待连接'
-            self.status=('AI Passport 已连接 · '+label if time.monotonic()-self.device.last_seen<15 else '等待已配对的 AI Passport · '+label)
+            last_contact=getattr(self.device,'last_contact',0) or self.device.last_seen
+            self.status=('AI Passport 已连接 · '+label if time.monotonic()-last_contact<15 else '等待已配对的 AI Passport · '+label)
             if transport=='ble' and self.deps.get('bluetooth_denied'):self.status='请允许助手使用蓝牙'
             hint='Mac 弹出蓝牙配对请求时，请点「连接」或「配对」'
-            if transport=='ble' and time.monotonic()-self.device.last_seen>=15:self.error=hint
+            if transport=='ble' and time.monotonic()-last_contact>=15:self.error=hint
             elif self.error==hint:self.error=''
             return
         self.status='正在连接 AI Passport · USB 优先 / 蓝牙备用'

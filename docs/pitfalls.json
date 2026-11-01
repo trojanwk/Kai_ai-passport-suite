@@ -141,6 +141,58 @@
         "运行宿主解析器 ASan/UBSan 测试及固件构建",
         "实机网络、按键、缓存重启和 RAM 峰值需独立验证，构建不替代验收"
       ]
+    },
+    {
+      "id": "P04",
+      "title": "A paired badge can retain the protocol while changing its Bluetooth name",
+      "severity": "high",
+      "confidence": "high",
+      "risk_codes": [
+        "name_based_discovery_failure",
+        "cross_device_selection"
+      ],
+      "symptoms": [
+        "macOS shows a connected badge while the companion waits indefinitely",
+        "The required GATT services exist but the name differs from the original MAC-derived name",
+        "A dictation page can wait even though the encrypted BLE link never disconnected."
+      ],
+      "trigger_actions": [
+        "Rename device firmware Bluetooth advertising",
+        "Reconnect a previously USB-paired badge through BLE"
+      ],
+      "related_paths": [
+        "scripts/passport_assistant.py",
+        "scripts/passport_device.py",
+        "scripts/passport_computer_link.py",
+        "tests/test_passport_bluetooth_identity.py",
+        "tests/test_passport_assistant.py",
+        "tests/test_passport_bluetooth_dictation.py",
+        "scripts/passport_dictation.py",
+        "scripts/passport_services.py",
+        "tests/test_passport_radio_subscriptions.py",
+        "tests/test_passport_dictation_reentry.py",
+        "tests/test_passport_link_health.py"
+      ],
+      "affected_modules": [
+        "companion_bluetooth_identity"
+      ],
+      "blast_radius": [
+        "Mac companion BLE connection"
+      ],
+      "check_before_edit": [
+        "Inspect the connected peripheral and required services",
+        "Authenticate a read-only status request with the existing pairing credential before pinning the identifier",
+        "Do not select an arbitrary peripheral with a matching service or expose pairing credentials",
+        "Compare BLE connect/disconnect counters across page changes before blaming pairing.",
+        "Notification registrations belong to a BLE client connection, not a page; reuse them until that client disconnects.",
+        "Retries must stop on permission failure or a stale page generation.",
+        "Keep full-status freshness separate from authenticated link contact; successful RPC traffic is evidence of a live connection even when a large status response is delayed."
+      ],
+      "safe_observation_methods": [
+        "Read /api/state and /api/link-state",
+        "Enumerate CoreBluetooth connected peripherals and GATT services",
+        "Read authenticated /status through the pinned identity"
+      ]
     }
   ]
 }

@@ -14,23 +14,28 @@ KEY='5d67d66a-70ed-4e30-9f6c-4fbddce3b011'
 AUDIO='5d67d66a-70ed-4e30-9f6c-4fbddce3b012'
 ACK='5d67d66a-70ed-4e30-9f6c-4fbddce3b013'
 
-def connected_passport(expected):
+def matches_passport(device,advertisement,expected,identifier=None):
+ identity=(str(device.address).lower()==identifier.lower()) if identifier else advertisement.local_name==expected
+ return identity and SERVICE in [s.lower() for s in (advertisement.service_uuids or [])]
+
+def connected_passport(expected,identifier=None):
  from CoreBluetooth import CBUUID
  from bleak.backends.corebluetooth.CentralManagerDelegate import CentralManagerDelegate
  from bleak.backends.device import BLEDevice
  manager=CentralManagerDelegate.alloc().init()
  peers=manager.central_manager.retrieveConnectedPeripheralsWithServices_([CBUUID.UUIDWithString_(SERVICE)])
- matches=[p for p in peers if p.name()==expected]
+ matches=[p for p in peers if str(p.identifier().UUIDString()).lower()==identifier.lower()] if identifier else [p for p in peers if p.name()==expected]
  if len(matches)>1:raise ConnectionError('paired Bluetooth identity is ambiguous')
  if not matches:return None
  peer=matches[0]
  return BLEDevice(str(peer.identifier().UUIDString()),str(peer.name()),(peer,manager),-127)
 
 class Radio:
- def __init__(self,mac):
+ def __init__(self,mac,identifier=None):
   self.loop=asyncio.new_event_loop();self.client=None;self.device=None;self.events=collections.deque(maxlen=1024);self.lock=threading.Lock();self.dropped=0
   self.expected='AI-Passport-'+mac.replace(':','').upper()
-  self.rpc_lock=asyncio.Lock();self.connect_lock=asyncio.Lock();self.sequence=0
+  self.identifier=identifier
+  self.rpc_lock=asyncio.Lock();self.connect_lock=asyncio.Lock();self.voice_lock=asyncio.Lock();self.voice_client=None;self.sequence=0
   self.thread=threading.Thread(target=self.loop.run_forever,daemon=True);self.thread.start()
  def rpc(self,action,**values):
   future=asyncio.run_coroutine_threadsafe(self.call(action,values),self.loop)
@@ -55,6 +60,10 @@ class Radio:
   with self.lock:
    if len(self.events)==1024:self.dropped+=1
    self.events.append({'report':report,'hex':bytes(data).hex()})
+ def disconnected(self,client):
+  if client is not self.client:return
+  self.voice_client=None
+  self.notify(0,b'')
  async def call(self,action,values):
   from bleak import BleakClient,BleakScanner
   connected=bool(self.client and self.client.is_connected)
@@ -67,10 +76,10 @@ class Radio:
     if not (self.client and self.client.is_connected):
      if self.device is None:
       # A peripheral connected by macOS may have stopped advertising.
-      self.device=connected_passport(self.expected)
-      if self.device is None:self.device=await BleakScanner.find_device_by_filter(lambda device,adv:adv.local_name==self.expected and SERVICE in [s.lower() for s in (adv.service_uuids or [])],timeout=6,service_uuids=[SERVICE])
+      self.device=connected_passport(self.expected,self.identifier)
+      if self.device is None:self.device=await BleakScanner.find_device_by_filter(lambda device,adv:matches_passport(device,adv,self.expected,self.identifier),timeout=6,service_uuids=[SERVICE])
       if self.device is None:raise RuntimeError('paired Passport is not advertising')
-     client=BleakClient(self.device,services=[SERVICE,RPC_SERVICE],disconnected_callback=lambda _:self.notify(0,b''),timeout=6)
+     client=BleakClient(self.device,services=[SERVICE,RPC_SERVICE],disconnected_callback=self.disconnected,timeout=6)
      try:
       await client.connect()
       # Reading the encrypted key starts pairing; leave time to accept the macOS pairing prompt.
@@ -92,11 +101,25 @@ class Radio:
   if action=='pair':
    await self.client.read_gatt_char(KEY);return {'ok':True,'result':{'encrypted_characteristic_read':True}}
   if action=='voice_subscribe':
-   with self.lock:self.events.clear();self.dropped=0
-   for uuid in [KEY,AUDIO]:
-    try:await self.client.stop_notify(uuid)
-    except Exception:pass
-   await self.client.start_notify(KEY,lambda _,data:self.notify(1,data));await self.client.start_notify(AUDIO,lambda _,data:self.notify(2,data));return {'ok':True,'result':{}}
+   async with self.voice_lock:
+    client=self.client
+    if not client or not client.is_connected:raise ConnectionError('Bluetooth disconnected before voice subscription')
+    # Page changes keep the BLE link and its subscriptions. Only flush the old page's reports.
+    with self.lock:self.events.clear();self.dropped=0
+    if self.voice_client is client:return {'ok':True,'result':{'reused':True}}
+    started=[]
+    try:
+     for uuid,report in [(KEY,1),(AUDIO,2)]:
+      await client.start_notify(uuid,lambda _,data,report=report:self.notify(report,data));started.append(uuid)
+     if not client.is_connected:raise ConnectionError('Bluetooth disconnected during voice subscription')
+    except BaseException:
+     for uuid in started:
+      try:await client.stop_notify(uuid)
+      except Exception:pass
+     self.voice_client=None
+     raise
+    self.voice_client=client
+    return {'ok':True,'result':{'reused':False}}
   if action=='voice_events':
    with self.lock:events=list(self.events);self.events.clear();dropped=self.dropped;self.dropped=0
    return {'ok':True,'result':{'connected':connected,'events':events,'dropped':dropped}}
@@ -113,12 +136,12 @@ class Device:
  def __init__(self,config=None,gateway=None,gateway_log=None):
   self.config=config if config is not None else json.loads(config_file().read_text());self.token=self.config['api_token'];self.headers={'Authorization':'Bearer '+self.token}
   self.guest='http://127.0.0.1:'+str(self.config['http_forward']);self.audio_endpoint=('127.0.0.1',self.config['audio_forward'])
-  self.http_local=threading.local();self.state={};self.lock=threading.Lock();self.command_lock=threading.Lock();self.native_lock=threading.Lock();self.next_id=0;self.next_control=0;self.stop=threading.Event();self.radio=None;self.services=None;self.thread=None;self.last_seen=0;self.transport='none';self.link_changed=True;self.usb_reports=UsbReports(self.audio_endpoint,self.token)
+  self.http_local=threading.local();self.state={};self.lock=threading.Lock();self.command_lock=threading.Lock();self.native_lock=threading.Lock();self.next_id=0;self.next_control=0;self.stop=threading.Event();self.radio=None;self.services=None;self.thread=None;self.last_seen=0;self.last_contact=0;self.transport='none';self.link_changed=True;self.usb_reports=UsbReports(self.audio_endpoint,self.token)
   self.gateway_log=gateway_log or ((user_data() if PACKAGED else ROOT/'results/passport-device')/'gateway.log').open('a');self.gateway=gateway
   try:self.initialize()
   except Exception:self.close();raise
  def initialize(self):
-  self.radio=Radio(self.config['mac'])
+  self.radio=Radio(self.config['mac'],self.config.get('bluetooth_id'))
   if self.gateway is not None:self.transport='usb'
   self.state={'app':0,'generation':0,'command_id':0,'ble_stack':False,'transport':'none'}
   self.services=Services(self);self.thread=threading.Thread(target=self.poll,daemon=True);self.thread.start()
@@ -147,9 +170,11 @@ class Device:
   self.config['port']=paired_port(self.config['mac'],list_ports.comports())
   self.gateway=subprocess.Popen([str(helper('passport-ppp')),'--serial',self.config['port'],'--forward',str(self.config['http_forward']),'--audio-forward',str(self.config['audio_forward'])],stdout=self.gateway_log,stderr=subprocess.STDOUT)
  def request(self,path,data=None):
-  if self.transport=='ble':return self.radio.request(self.token,path,data)
-  if self.transport!='usb':raise ConnectionError('device transport not ready')
-  return self.http_request(path,data)
+  if self.transport=='ble':result=self.radio.request(self.token,path,data)
+  elif self.transport=='usb':result=self.http_request(path,data)
+  else:raise ConnectionError('device transport not ready')
+  self.last_contact=time.monotonic()
+  return result
  def http_request(self,path,data=None):
   raw=None if data is None else json.dumps(data,ensure_ascii=False).encode();headers=dict(self.headers)
   if raw is not None:headers['Content-Type']='application/json'
@@ -166,7 +191,9 @@ class Device:
     connection.close();self.http_local.connection=None
     if attempt+1==(2 if data is None else 1):raise
  def snapshot(self):
-  with self.lock:return dict(self.state,boot=True,physical_device=True,emulator_alive=False,transport=self.transport,status_age_seconds=round(time.monotonic()-self.last_seen,1) if self.last_seen else None,link_ready=bool(self.last_seen and time.monotonic()-self.last_seen<10 and self.state.get('transport')==self.transport))
+  with self.lock:
+   now=time.monotonic();contact=self.last_contact or self.last_seen
+   return dict(self.state,boot=True,physical_device=True,emulator_alive=False,transport=self.transport,status_age_seconds=round(now-self.last_seen,1) if self.last_seen else None,contact_age_seconds=round(now-contact,1) if contact else None,link_ready=bool(contact and now-contact<10 and self.state.get('transport')==self.transport))
  def command(self,name):
   with self.command_lock:return self.send_command(name)
  def status_labels(self,labels):
@@ -237,7 +264,7 @@ class Device:
    try:
     if time.monotonic()-selected>1:
      self.select_transport();selected=time.monotonic()
-    interval=.7 if self.transport=='usb' else 3
+    interval=.7 if self.transport=='usb' else 5
     if self.link_changed or time.monotonic()-last>interval:
      state=self.request('/status')
      assert state.get('simulator') is False and state.get('hardware',{}).get('display')

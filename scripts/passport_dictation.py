@@ -144,16 +144,19 @@ class BluetoothDictation:
         return reply['result']
 
     def open(self,context):
+        started=time.monotonic()
         self.close(); self.context=context; self.stop=threading.Event()
         self.stats.pop('error',None)
+        self.stats['state']='正在准备语音输入'
         self.services.require_dictation_permissions()
         wired=getattr(self.services.sim,'transport',None)=='usb'
         self.stats.update(transport='USB' if wired else 'BLE',physical_adapter=not wired)
         if not wired and not self.services.sim.snapshot().get('ble_stack'): self.services.sim.command('ble_on')
         if not self.rpc('status')['connected']:
             self.rpc('connect'); self.rpc('pair')
-        self.rpc('voice_subscribe')
+        subscription=self.rpc('voice_subscribe')
         self.stats['state']='USB 就绪' if wired else '蓝牙就绪'
+        self.stats.update(open_ms=round((time.monotonic()-started)*1000,2),subscription_reused=bool(subscription.get('reused')))
         self.thread=threading.Thread(target=self.run,daemon=True); self.thread.start()
 
     def ack(self,kind):
