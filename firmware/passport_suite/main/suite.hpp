@@ -121,7 +121,7 @@ struct Model {
     struct PodcastRow{char name[40];char note[48];};  // program, and where it was left
     // 自选股: one quote; tag is the market (SH, SZ, BJ, HK, US); values are NAN when not traded.
     struct StockRow{char name[28];char code[10];char tag[4];uint8_t decimals;float price,change,pct,open,high,low,prev,amount;};
-    // 百度热搜: a title cut to the list's width, its heat and Baidu's tag (kHotPinned: pinned on top).
+    // AIHOT: a list title, independent source count, and a reserved tag for wire compatibility.
     struct HotRow{char title[40];uint32_t score;uint8_t tag;};
     // 语音笔记: a note's time and the start of its text, for the list.
     struct MemoRow{uint32_t at;uint16_t chars;char head[62];};
@@ -144,7 +144,7 @@ struct Model {
         MacroView macro;
         TyphoonView typhoon;
         // title and desc: item detailFor in full (255: none yet).
-        struct{std::array<HotRow,kHotRows> rows;char title[72],desc[240];uint8_t detailFor;} hot;
+        struct{std::array<HotRow,kHotRows> rows;char title[144],desc[240],source[64];uint32_t updated;uint8_t detailFor;} hot;
         // rows: the notes from memoTop on show (a line of each); note: the one memoDetail opens.
         struct{std::array<MemoRow,kMemoRows> rows;MemoNote note;} memo;
         WheelBoard wheel;
@@ -197,7 +197,7 @@ struct Model {
     uint8_t storyCount{},storyIndex{};
     // 台风路径: page.typhoon, this season's typhoons; Up/Down pick typhoonIndex, whose track LiveServices fetches.
     uint8_t typhoonIndex{};
-    // 百度热搜: page.hot; Up/Down move hotIndex, Confirm opens or closes its detail. hotUpdated is the fetch's epoch.
+    // AIHOT: Up/Down select an event, Confirm opens/closes its detail; hotUpdated is the fetch epoch.
     uint8_t hotCount{},hotIndex{};bool hotDetail{};uint32_t hotUpdated{};
     // 语音笔记: memoCount notes in MemoStore, newest first. memoIndex 0 is the 录音 row, n the note n-1; Confirm
     // records (LiveServices) or opens the note, scrolled memoScroll lines. memoArmed: a long Down asked to delete it.

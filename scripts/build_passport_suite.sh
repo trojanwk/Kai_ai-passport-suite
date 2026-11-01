@@ -1,19 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
-RUNTIME="$HOME/.local/share/esp32-agent"
 PROJECT="$ROOT/firmware/passport_suite"
 if [[ "${1:-}" == connectivity ]]; then PROJECT="$ROOT/firmware/passport_connectivity"; fi
 if [[ "${1:-}" == device ]]; then PROJECT="$ROOT/firmware/passport_device"; fi
-# This machine's own ESP-IDF 6.1 install; elsewhere, run ESP-IDF 6.1's export.sh first.
-if [[ -d "$RUNTIME/esp-idf-v6.1" ]]; then
-  export IDF_PATH="$RUNTIME/esp-idf-v6.1"
-  export IDF_TOOLS_PATH="$RUNTIME/idf-tools"
-  export IDF_PYTHON_ENV_PATH="$IDF_TOOLS_PATH/python_env/idf6.1_py3.12_env"
-  export ESP_IDF_VERSION=6.1
-  export ESP_ROM_ELF_DIR="$IDF_TOOLS_PATH/tools/esp-rom-elfs/20241011"
-  export PATH="$IDF_PYTHON_ENV_PATH/bin:$IDF_TOOLS_PATH/tools/riscv32-esp-elf/esp-15.2.0_20251204/riscv32-esp-elf/bin:/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
-fi
+# Honor the caller's activated SDK; otherwise use this fork's local activation helper.
+if [[ -z "${IDF_PATH:-}" ]]; then source "$ROOT/tools/activate-local.sh"; fi
+idf_version="$(python "$IDF_PATH/tools/idf.py" --version)"
+[[ "$idf_version" =~ ^ESP-IDF\ v6\.1([.-]|$) ]] || { echo "ESP-IDF 6.1 is required; found $idf_version" >&2; exit 1; }
 # Every component is local (components/, deps/): no registry lookups.
 export IDF_COMPONENT_CHECK_NEW_VERSION=0 IDF_COMPONENT_MANAGER=0
 [[ -n "${IDF_PATH:-}" ]] || { echo "ESP-IDF 6.1 not found: source its export.sh first" >&2; exit 1; }
@@ -32,7 +26,7 @@ if [[ "${1:-}" == connectivity || "${1:-}" == device ]]; then
 fi
 
 cd "$PROJECT"
-FONT_PYTHON="$HOME/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3"
+FONT_PYTHON="$ROOT/.venv/bin/python"
 [[ -x "$FONT_PYTHON" ]] || FONT_PYTHON=python3
 # The generated fonts are committed: without Pillow the build uses them as they are.
 if "$FONT_PYTHON" -c "import PIL" 2>/dev/null; then "$FONT_PYTHON" "$ROOT/scripts/generate_passport_font.py"; else echo "Pillow missing: using the committed fonts"; fi

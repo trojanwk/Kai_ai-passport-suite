@@ -193,6 +193,72 @@
         "Enumerate CoreBluetooth connected peripherals and GATT services",
         "Read authenticated /status through the pinned identity"
       ]
+    },
+    {
+      "id": "P05",
+      "title": "AIHOT API and application-update boundaries",
+      "severity": "high",
+      "confidence": "high",
+      "risk_codes": [
+        "api_schema_drift",
+        "wrong_count_semantics",
+        "untrusted_story_url",
+        "erase_all_default",
+        "physical_validation_pending"
+      ],
+      "symptoms": [
+        "Source counts are labeled as popularity",
+        "A story ID is guessed when no story URL is provided",
+        "A browser installer erases stored settings before an application update"
+      ],
+      "trigger_actions": [
+        "Modify AIHOT parsing or refresh behavior",
+        "Build or install a custom firmware"
+      ],
+      "related_paths": [
+        "firmware/passport_device/main/hot_board.hpp",
+        "firmware/passport_device/main/native_services.cpp",
+        "firmware/passport_device/main/native_services.hpp",
+        "firmware/passport_connectivity/main/live_services.cpp",
+        "firmware/passport_suite/main/apps.hpp",
+        "firmware/passport_suite/main/suite.hpp",
+        "firmware/passport_suite/main/suite.cpp",
+        "firmware/passport_suite/main/voice_add.hpp",
+        "firmware/passport_suite/main/ui.cpp",
+        "firmware/passport_device/CMakeLists.txt",
+        "scripts/build_passport_suite.sh",
+        "requirements-dev.txt",
+        "tools/activate-local.sh",
+        "tools/validate.sh",
+        "tools/package_firmware.py",
+        "tools/browser-update.html",
+        "tests/test_passport_aihot.py",
+        "docs/aihot.md",
+        "docs/flash-guide.md"
+      ],
+      "affected_modules": [
+        "aihot_events"
+      ],
+      "blast_radius": [
+        "Hot list accuracy",
+        "On-device RAM",
+        "Persistent settings during installation"
+      ],
+      "check_before_edit": [
+        "Use schemaVersion 1 hot-topics and stories; public endpoints are obsolete",
+        "Use a random local attribution actor, never pairing credentials or MAC addresses",
+        "Treat sourceCount as independent-source coverage and preserve API ranking",
+        "Follow only supplied same-origin story URLs; bound retained text and parser depth",
+        "Do not loop on 429/566/567; reuse successful detail data and throttle list refreshes",
+        "Pin ESP Web Tools and set new_install_prompt_erase=true; its unknown-firmware default otherwise erases all Flash",
+        "Keep the erase checkbox unchecked and confirm installed partitions before application-only installation",
+        "Build/host tests do not authorize flashing or prove physical acceptance"
+      ],
+      "safe_observation_methods": [
+        "Run ASan/UBSan host tests and a read-only live API probe",
+        "Verify application/ELF identity, merged segments and partition bounds",
+        "After user approval, accept Chinese rendering, TLS, RAM, keys and voice on the device"
+      ]
     }
   ]
 }

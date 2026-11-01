@@ -792,18 +792,17 @@ void toolPagesTests(Runtime& runtime){
      t.ahead=0;t.at=1792400000;t.pressure=998;t.lowest=925;t.wind=15;t.speed=0;t.peakWind=58;t.peakGrade=5;t.heading[0]=0;}
     uiRender(runtime);uiCapture("typhoon_stopped");
     m.typhoonIndex=2;uiRender(runtime);CHECK(m.page.typhoon.shown!=m.typhoonIndex);m.page.typhoon.count=0;
-    // 百度热榜: Up/Down move through the board; Confirm opens the picked item and closes it, Back leaves the detail first.
+    // AIHOT synthetic fixtures: Up/Down select; Confirm opens/closes; Back leaves the detail first.
     CHECK(runtime.switchTo(App::Hot)==Result::Ok&&!m.hotCount&&!m.hotDetail&&m.page.hot.detailFor==255);
-    {const char* titles[]{"二十届五中全会在北京开始举行","日本前首相福田康夫去世","去不去养老院 老人子女谁说了算","中国发展机遇持续与世界共享","蜜雪冰城2小时赚够香飘飘3个月利润",
-                          "张家界景区播西游记硬控游客","美国客户一口气在广州买200套房","周星驰《功夫女足》烂番茄开分","全国大部气温将创新低","多地幼儿园改为养老院"};
-     const uint8_t tags[]{kHotPinned,1,0,0,3,0,1,0,0,0};
-     for(unsigned i=0;i<10;++i){auto& r=m.page.hot.rows[i];fitText(r.title,sizeof(r.title),titles[i],strlen(titles[i]));r.score=7904061-i*95321;r.tag=tags[i];}
+    {const char* titles[]{"示例：开源模型发布新版本","示例：人工智能研究取得进展","示例：模型工具新增语音能力","示例：开发工具支持本地运行","示例：多模态研究公布结果",
+                          "示例：机器人完成新任务","示例：智能助手改进工作流程","示例：模型评估方法更新","示例：算力平台发布工具","示例：开源社区推出新项目"};
+     for(unsigned i=0;i<10;++i){auto& r=m.page.hot.rows[i];fitText(r.title,sizeof(r.title),titles[i],strlen(titles[i]));r.score=12-i;r.tag=0;}
      m.hotCount=10;m.hotUpdated=1792999800;}
     runtime.key(Key::Up,523);CHECK(m.hotIndex==9);runtime.key(Key::Down,523);runtime.key(Key::Down,523);runtime.key(Key::Down,523);CHECK(m.hotIndex==2);
     uiRender(runtime);uiCapture("hot_items");
     runtime.key(Key::Confirm,523);CHECK(m.hotDetail);uiRender(runtime);uiCapture("hot_loading");
-    {auto& h=m.page.hot;h.detailFor=2;strcpy(h.title,"去不去养老院 老人子女谁说了算");
-     strcpy(h.desc,"近日，重庆90多岁的苏大爷将6名子女告上法庭，要求每人每月支付700元赡养费送自己去养老院并定期探望。此前苏大爷随长子生活近十年，因年事渐高照料吃力。");}
+    {auto& h=m.page.hot;h.detailFor=2;strcpy(h.title,"示例：模型工具新增语音能力，支持更自然的交互");
+     strcpy(h.desc,"这是一条用于界面验证的合成事件摘要。工具增加语音交互，开发者可在本地测试。右上方展示独立信源数量，不代表热度或文章总数。");strcpy(h.source,"示例信源");h.updated=1792999800;}
     uiRender(runtime);uiCapture("hot_detail");
     runtime.key(Key::Down,523);CHECK(m.hotIndex==3&&m.hotDetail);runtime.key(Key::Confirm,523);CHECK(!m.hotDetail);
     runtime.key(Key::Confirm,523);runtime.key(Key::Back,523);CHECK(runtime.active()==App::Hot&&!m.hotDetail);

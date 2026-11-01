@@ -1797,56 +1797,43 @@ void initTyphoon(lv_obj_t* screen){
     tyView=lv_obj_create(tyRoot);box(tyView,8,2,224,255,kBg);lv_obj_add_event_cb(tyView,drawTyphoon,LV_EVENT_DRAW_MAIN,nullptr);
 }
 void renderTyphoon(const Model& m){drawModel=&m;lv_obj_invalidate(tyView);}
-// 百度热榜: eight rows at a time (rank, title, Baidu's 新/热 tag, heat), the picked one highlighted; the detail shows
-// its full title and Baidu's summary.
+// AIHOT: ranked events with independent-source counts. Summaries are fetched only after opening a detail.
 lv_obj_t *hotRoot,*hotView;
 uint32_t hotRankColor(unsigned rank){return rank==1?0xf04848:rank==2?0xff8a3c:rank==3?0xf5b83d:kMuted;}
-void hotHeat(char* out,size_t size,uint32_t score){if(score>=10000)snprintf(out,size,"%lu万",static_cast<unsigned long>((score+5000)/10000));else snprintf(out,size,"%lu",static_cast<unsigned long>(score));}
-// Ranks count from 1 under a pinned item, which shows 顶.
-unsigned hotRank(const Model& m,unsigned i){return i+(m.hotCount&&m.page.hot.rows[0].tag==kHotPinned?0:1);}
-void hotTag(Painter& p,uint8_t tag,int x,int y){
-    if(tag!=1&&tag!=3)return;
-    p.rect(x,y,x+19,y+19,tag==1?0xff8a3c:0xf04848,5);p.text(tag==1?"新":"热",x,y+1,x+19,0xffffff,LV_TEXT_ALIGN_CENTER);
-}
 void drawHotList(Painter& p,const Model& m){
-    char text[64],heat[16];
+    char text[64],sources[24];
     if(m.livePhase==LivePhase::Error)snprintf(text,sizeof(text),"%s",m.liveState);
-    else if(m.hotUpdated&&m.clockValid){const time_t at=m.hotUpdated;tm t{};localtime_r(&at,&t);snprintf(text,sizeof(text),"百度热搜  ·  %02d:%02d 更新",t.tm_hour,t.tm_min);}
-    else snprintf(text,sizeof(text),"百度热搜");
+    else if(m.hotUpdated&&m.clockValid){const time_t at=m.hotUpdated;tm t{};localtime_r(&at,&t);snprintf(text,sizeof(text),"AIHOT  ·  %02d:%02d 更新",t.tm_hour,t.tm_min);}
+    else snprintf(text,sizeof(text),"AIHOT · AI 热榜");
     p.text(text,4,0,180,kMuted);
     snprintf(text,sizeof(text),"%u/%u",m.hotIndex+1,m.hotCount);p.text(text,180,3,219,kMuted,LV_TEXT_ALIGN_RIGHT,&lv_font_montserrat_14);
     const unsigned first=m.hotIndex>7?m.hotIndex-7:0;
     for(unsigned i=first;i<m.hotCount&&i<first+8;++i){
-        const auto& r=m.page.hot.rows[i];const int y=24+(i-first)*29;const unsigned rank=hotRank(m,i);
+        const auto& r=m.page.hot.rows[i];const int y=24+(i-first)*29;
         p.rect(0,y,223,y+25,i==m.hotIndex?kBorder:kPanel,6);
-        if(r.tag==kHotPinned)p.text("顶",2,y+3,28,0xf04848,LV_TEXT_ALIGN_CENTER);
-        else{snprintf(text,sizeof(text),"%u",rank);p.text(text,2,y+5,28,hotRankColor(rank),LV_TEXT_ALIGN_CENTER,&lv_font_montserrat_14);}
-        hotHeat(heat,sizeof(heat),r.score);
-        const bool tagged=r.tag==1||r.tag==3;const int right=tagged?144:166;
-        const char* end=lineEnd(r.title,right-32);fitText(text,sizeof(text),r.title,end-r.title);p.text(text,32,y+3,right,kText);
-        if(tagged)hotTag(p,r.tag,148,y+3);
-        p.text(heat,170,y+3,219,kMuted,LV_TEXT_ALIGN_RIGHT);
+        snprintf(text,sizeof(text),"%u",i+1);p.text(text,2,y+5,28,hotRankColor(i+1),LV_TEXT_ALIGN_CENTER,&lv_font_montserrat_14);
+        const char* end=lineEnd(r.title,166-32);fitText(text,sizeof(text),r.title,end-r.title);p.text(text,32,y+3,166,kText);
+        snprintf(sources,sizeof(sources),"%lu源",static_cast<unsigned long>(r.score));p.text(sources,170,y+3,219,kMuted,LV_TEXT_ALIGN_RIGHT);
     }
 }
 void drawHotDetail(Painter& p,const Model& m){
-    char text[64],heat[16];const auto& h=m.page.hot;const auto& r=h.rows[m.hotIndex%m.hotCount];const unsigned rank=hotRank(m,m.hotIndex);
-    const uint32_t color=r.tag==kHotPinned?0xf04848:hotRankColor(rank)==kMuted?kBorder:hotRankColor(rank);
-    p.rect(0,0,34,21,color,6);
-    if(r.tag==kHotPinned)p.text("置顶",0,1,34,0xffffff,LV_TEXT_ALIGN_CENTER);else{snprintf(text,sizeof(text),"%u",rank);p.text(text,0,3,34,0xffffff,LV_TEXT_ALIGN_CENTER,&lv_font_montserrat_14);}
-    hotHeat(heat,sizeof(heat),r.score);snprintf(text,sizeof(text),"热度 %s",heat);p.text(text,42,1,150,kMuted);
-    hotTag(p,r.tag,150,1);
-    snprintf(text,sizeof(text),"%u/%u",m.hotIndex+1,m.hotCount);p.text(text,180,3,219,kMuted,LV_TEXT_ALIGN_RIGHT,&lv_font_montserrat_14);
+    char text[96];const auto& h=m.page.hot;const auto& r=h.rows[m.hotIndex%m.hotCount];const unsigned rank=m.hotIndex+1;
+    p.rect(0,0,34,21,rank<=3?hotRankColor(rank):kBorder,6);
+    snprintf(text,sizeof(text),"%u",rank);p.text(text,0,3,34,0xffffff,LV_TEXT_ALIGN_CENTER,&lv_font_montserrat_14);
+    snprintf(text,sizeof(text),"%lu 个信源",static_cast<unsigned long>(r.score));p.text(text,42,1,170,kMuted);
+    snprintf(text,sizeof(text),"%u/%u",rank,m.hotCount);p.text(text,180,3,219,kMuted,LV_TEXT_ALIGN_RIGHT,&lv_font_montserrat_14);
     const bool ready=h.detailFor==m.hotIndex;
-    paragraph(p,ready?h.title:r.title,30,2,kText);
-    p.rect(0,74,223,74,kBorder);
-    if(!ready)p.text(m.livePhase==LivePhase::Error?m.liveState:"正在加载…",0,84,223,kMuted);
-    else if(!*h.desc)p.text("暂无摘要",0,84,223,kMuted);
-    else paragraph(p,h.desc,82,7,kMuted);
-    if(m.hotUpdated&&m.clockValid){const time_t at=m.hotUpdated;tm t{};localtime_r(&at,&t);snprintf(text,sizeof(text),"百度热搜  ·  %02d:%02d 更新",t.tm_hour,t.tm_min);p.text(text,0,232,223,0x5f7f94);}
+    paragraph(p,ready?h.title:r.title,27,3,kText);p.rect(0,91,223,91,kBorder);
+    if(!ready)p.text(m.livePhase==LivePhase::Error?m.liveState:"正在加载事件摘要…",0,100,223,kMuted);
+    else paragraph(p,*h.desc?h.desc:"暂无事件摘要",99,5,kMuted);
+    if(ready&&*h.source)paragraph(p,h.source,207,1,kMuted);
+    if(ready&&h.updated&&m.clockValid){const time_t at=h.updated;tm t{};localtime_r(&at,&t);snprintf(text,sizeof(text),"AIHOT · %02d-%02d %02d:%02d",t.tm_mon+1,t.tm_mday,t.tm_hour,t.tm_min);}
+    else snprintf(text,sizeof(text),"来源：AIHOT · aihot.news");
+    p.text(text,0,232,223,0x5f7f94);
 }
 void drawHot(lv_event_t* e){
     const auto& m=*drawModel;auto p=painter(e);
-    if(!m.hotCount){p.text(m.livePhase==LivePhase::Error?m.liveState:"正在获取百度热搜",0,100,223,kMuted,LV_TEXT_ALIGN_CENTER);return;}
+    if(!m.hotCount){p.text(m.livePhase==LivePhase::Error?m.liveState:m.livePhase==LivePhase::Ready?"AIHOT 暂无热点":"正在获取 AI 热榜",0,100,223,kMuted,LV_TEXT_ALIGN_CENTER);return;}
     if(m.hotDetail)drawHotDetail(p,m);else drawHotList(p,m);
 }
 void initHot(lv_obj_t* screen){

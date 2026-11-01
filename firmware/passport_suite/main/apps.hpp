@@ -17,8 +17,8 @@ inline constexpr const char* kMenuPages[]{"小智 · 语音","电脑 · 时间",
 inline constexpr uint8_t kMenuStarts[]{0,9,18,27,35,kFunctions.size()};  // the last marks the end
 static_assert(std::size(kMenuStarts)==std::size(kMenuPages)+1);
 inline constexpr unsigned menuPageOf(unsigned index){unsigned p=0;while(index>=kMenuStarts[p+1])++p;return p;}
-// 百度热搜: the items kept, and the tag of the pinned one (Baidu's own tags: 1 新, 3 热).
-inline constexpr unsigned kHotRows = 20;
+// AIHOT's public hotspot endpoint returns at most ten ranked events.
+inline constexpr unsigned kHotRows = 10;
 inline constexpr uint8_t kHotPinned = 255;
 // Warning light frames: one colour per 125 ms step, 0 = dark. Up/Down picks the pattern.
 struct AlertMode { const char* name; uint8_t count; uint32_t colors[14]; };

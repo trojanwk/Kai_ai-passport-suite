@@ -54,7 +54,7 @@ constexpr Profile kProfiles[] = {
     {"alarm", "闹钟", 0, false, false},
     {"stock", "自选股", 0, false, false},
     {"typhoon", "台风路径", 0, false, false, "台风"},
-    {"hot", "百度热榜", 0, false, false, "热榜"},
+    {"hot", "AI 热榜", 0, false, false, "热榜"},
     {"memo", "语音笔记", 0, true, false},
     {"wheel", "随机转盘", 0, false, false},
     {"translate", "中英翻译", 0, true, false},

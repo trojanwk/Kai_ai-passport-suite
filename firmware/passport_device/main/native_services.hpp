@@ -49,7 +49,7 @@ class NativeServices {
     // update as "notice" (and "select": the security added, "city": the city set).
     char spoken_[160]{},notice_[160]{},city_[80]{};int select_{-1};
     void addStock(const char*);void macro();void setCity(const char*);void locate();
-    void work();void home();void chat();void media();void podcast();void words();void news();void rates();void history();void daily();void quake();void hacker();void quiz();void forecast();void stock();void typhoon();void hot();bool newsList();void memo();void translate();void sayTranslation();bool hotBoard();bool air(double,double,WeatherForecast&);bool warnings(const MediaPrefs&,WeatherWarning*,uint8_t&,unsigned);bool warningText(const char*,char*,size_t);
+    void work();void home();void chat();void media();void podcast();void words();void news();void rates();void history();void daily();void quake();void hacker();void quiz();void forecast();void stock();void typhoon();void hot();bool newsList();void memo();void translate();void sayTranslation();bool hotBoard();bool hotDetail();bool air(double,double,WeatherForecast&);bool warnings(const MediaPrefs&,WeatherWarning*,uint8_t&,unsigned);bool warningText(const char*,char*,size_t);
     bool playMp3(esp_http_client_handle_t client,uint8_t* bytes,size_t size,int count);
     // 财经新闻 while its page is open (the task's own block): publish() sends the six titles and item newsIndex_
     // in full, which stays under the 2 KiB message (a longer one is dropped, leaving the page loading).
@@ -62,7 +62,7 @@ class NativeServices {
     struct StoryItem{char title[90];char site[26];uint16_t points,comments;uint32_t at;};
     struct Quiz{uint32_t serial;char question[256];char answers[4][72];char category[40];char level[8];uint8_t correct;};
     struct PodcastRow{char name[40];char note[48];};
-    // 百度热搜 while its page is open (the task's own block): full titles and summaries, item hotIndex_ on show.
+    // AIHOT's bounded events and lazily fetched summaries belong to the open page's task.
     HotItem* hot_{};unsigned hotCount_{},hotIndex_{};uint32_t hotUpdated_{};
     union Page{TranslationText translation;QuakeItem quakes[16];StoryItem stories[10];Quiz quiz;PodcastRow podcasts[PodcastList::kMax];WeatherForecast forecast;TyphoonView typhoon;MacroView macro;
         // 自选股: the quotes, and for row chartFor (-1 = none) its chart scaled 0-999 between low and high.

@@ -269,7 +269,7 @@ inline constexpr AppWord kAppWords[]{
     {App::Quake,"地震速报"},{App::Quake,"地震"},{App::News,"财经新闻"},{App::News,"新闻"},
     {App::Stock,"自选股"},{App::Stock,"股票"},{App::Stock,"自选"},{App::Stock,"股市"},{App::Rate,"汇率"},
     {App::Macro,"宏观雷达"},{App::Macro,"宏观"},
-    {App::Hot,"百度热榜"},{App::Hot,"热榜"},{App::Hot,"热搜"},{App::Hacker,"hackernews"},{App::Hacker,"hn头条"},
+    {App::Hot,"ai热榜"},{App::Hot,"ai热点"},{App::Hot,"人工智能热榜"},{App::Hot,"热榜"},{App::Hot,"热搜"},{App::Hacker,"hackernews"},{App::Hacker,"hn头条"},
     {App::Quiz,"知识问答"},{App::Quiz,"问答"},{App::Quiz,"答题"},{App::Words,"背单词"},{App::Words,"单词"},
     {App::Daily,"每日一句"},{App::Radio,"收音机"},{App::Radio,"电台"},{App::Radio,"广播"},{App::Podcast,"播客"},
     {App::Noise,"白噪音"},{App::Noise,"噪音"},{App::Sound,"声音"},{App::Sound,"分贝"},{App::Status,"状态牌"},

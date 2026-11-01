@@ -149,11 +149,11 @@ void NativeServices::publish(const Job& job,const char* state,const char* phase,
         }
         if(t.cityLat!=INT16_MIN){auto* c=cJSON_AddArrayToObject(o,"c");cJSON_AddItemToArray(c,cJSON_CreateString(t.city));cJSON_AddItemToArray(c,cJSON_CreateNumber(t.cityLon));cJSON_AddItemToArray(c,cJSON_CreateNumber(t.cityLat));}
     }
-    // 百度热搜: rows [title cut to the list, heat, tag]; item i in full; at: when fetched.
+    // AIHOT: list rows, source counts, and the selected event's summary and source timestamp.
     if(job.app==App::Hot&&!strcmp(phase,"ready")&&hot_){auto* o=cJSON_AddObjectToObject(j.value,"hot");auto* rows=cJSON_AddArrayToObject(o,"r");
         for(unsigned i=0;i<hotCount_;++i){char title[40];copy(title,hot_[i].title);auto* r=cJSON_CreateArray();cJSON_AddItemToArray(r,cJSON_CreateString(title));
             cJSON_AddItemToArray(r,cJSON_CreateNumber(hot_[i].score));cJSON_AddItemToArray(r,cJSON_CreateNumber(hot_[i].tag));cJSON_AddItemToArray(rows,r);}
-        if(hotIndex_<hotCount_){cJSON_AddNumberToObject(o,"i",hotIndex_);cJSON_AddStringToObject(o,"t",hot_[hotIndex_].title);cJSON_AddStringToObject(o,"d",hot_[hotIndex_].desc);}
+        if(hotIndex_<hotCount_){const auto& row=hot_[hotIndex_];cJSON_AddNumberToObject(o,"i",row.detail?int(hotIndex_):-1);cJSON_AddStringToObject(o,"t",row.title);cJSON_AddStringToObject(o,"d",row.desc);cJSON_AddStringToObject(o,"s",row.source);cJSON_AddNumberToObject(o,"u",row.updated);}
         cJSON_AddNumberToObject(o,"at",hotUpdated_);
     }
     if(job.app==App::Home&&weatherReading_.known){
@@ -229,6 +229,8 @@ bool NativeServices::fetch(const char* url,char* output,size_t capacity,Sink sin
     if(post){esp_http_client_set_header(client,"Content-Type","application/json");esp_http_client_set_post_field(client,post,strlen(post));}
     ++httpCount_;const auto result=esp_http_client_perform(client);const int code=esp_http_client_get_status_code(client);httpStatus_=code;error_=result;int tlsCode=0,tlsFlags=0;tlsResult_=esp_http_client_get_and_clear_last_tls_error(client,&tlsCode,&tlsFlags);tlsError_=tlsCode;tlsFlags_=tlsFlags;socketError_=esp_http_client_get_errno(client);esp_http_client_cleanup(client);
     if(!cancelled()&&(body.done||(!body.invalid&&result==ESP_OK&&code==200&&body.used>0)))return true;
+    // AIHOT rate/edge refusals are not transient network failures; leave them for a later user refresh.
+    if(userAgent&&strstr(userAgent,"aihot-api/")&&(code==429||code==566||code==567))return false;
     if(body.invalid||!retryNetwork(attempt,result,tlsResult_.load(),tlsFlags,socketError_.load(),code)||!retryPause(attempt))return false;
     ++httpRetries_;
     }
@@ -1365,31 +1367,54 @@ void NativeServices::typhoon(){
     if(cancelled())return;
     publish(current_,"已更新","ready");
 }
-// 百度热搜: the board's PC feed (HTTPS, no key, about 57 KB for 50 items with summaries), read as it arrives and the
-// first kHotRows kept, the pinned item ("topContent", after the rest) first. The task stays for the page: "item:<i>"
-// sends that item in full from what was read, anything else fetches the board again.
+namespace {
+// Random local attribution identifier: never a MAC address, pairing credential, or account token.
+const char* aihotAgent(){
+    static char agent[112]{};if(*agent)return agent;
+    char actor[37]{};nvs_handle_t h{};const bool opened=nvs_open("device",NVS_READWRITE,&h)==ESP_OK;
+    if(!opened||!nvsString(h,"aihot_actor",actor,sizeof(actor))){
+        uint8_t bytes[16];esp_fill_random(bytes,sizeof(bytes));bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;
+        snprintf(actor,sizeof(actor),"%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",bytes[0],bytes[1],bytes[2],bytes[3],bytes[4],bytes[5],bytes[6],bytes[7],bytes[8],bytes[9],bytes[10],bytes[11],bytes[12],bytes[13],bytes[14],bytes[15]);
+        if(opened){nvs_set_str(h,"aihot_actor",actor);nvs_commit(h);}
+    }
+    if(opened)nvs_close(h);
+    snprintf(agent,sizeof(agent),"aihot-api/2.0.0 aihot-actor/%s Kai-ai-passport-suite/1",actor);return agent;
+}
+constexpr const char* aihotHeaders[]{"Accept","application/json","Accept-Encoding","identity",nullptr};
+}
 bool NativeServices::hotBoard(){
-    std::unique_ptr<HotBoardScan> board(new(std::nothrow) HotBoardScan(hot_));
-    if(!board)return false;
-    hotCount_=0;  // a failed read leaves the items half overwritten
-    const Sink sink=[](void* context,const char* bytes,size_t size){
-        auto& b=*static_cast<HotBoardScan*>(context);if(!bytes)b.start();else b.feed(bytes,size);return true;
-    };
-    if(!fetch("https://top.baidu.com/api/board?platform=pc&tab=realtime",nullptr,0,sink,board.get())||!board->count())return false;
-    hotCount_=board->count();hotUpdated_=time(nullptr)>1700000000?time(nullptr):0;
+    // Preserve a valid board if a subsequent refresh fails partway through a response.
+    auto rows=std::unique_ptr<HotItem[]>(new(std::nothrow)HotItem[kHotRows]);
+    auto parser=std::unique_ptr<AihotJson>(rows?new(std::nothrow)AihotJson(rows.get()):nullptr);
+    if(!parser)return false;
+    const Sink sink=[](void* context,const char* bytes,size_t size){auto& p=*static_cast<AihotJson*>(context);if(!bytes)p.start();else p.feed(bytes,size);return true;};
+    if(!fetch("https://aihot.news/api/v1/hot-topics",nullptr,0,sink,parser.get(),nullptr,aihotAgent(),aihotHeaders)||!parser->finish())return false;
+    hotCount_=parser->count();std::copy_n(rows.get(),hotCount_,hot_);hotUpdated_=time(nullptr)>1700000000?time(nullptr):0;
+    if(hotIndex_>=hotCount_)hotIndex_=0;
     return true;
 }
+bool NativeServices::hotDetail(){
+    if(hotIndex_>=hotCount_)return false;
+    auto& row=hot_[hotIndex_];if(row.detail)return true;
+    if(!*row.story){copy(row.desc,"该热点暂无事件摘要");row.detail=true;return true;}
+    auto parser=std::unique_ptr<AihotJson>(new(std::nothrow)AihotJson(row));if(!parser)return false;
+    char url[128];snprintf(url,sizeof(url),"https://aihot.news/api/v1/stories/%s",row.story);
+    const Sink sink=[](void* context,const char* bytes,size_t size){auto& p=*static_cast<AihotJson*>(context);if(!bytes)p.start();else p.feed(bytes,size);return true;};
+    return fetch(url,nullptr,0,sink,parser.get(),nullptr,aihotAgent(),aihotHeaders)&&parser->finish();
+}
 void NativeServices::hot(){
-    publish(current_,"正在获取百度热搜","loading");
-    std::unique_ptr<HotItem[]> items(new(std::nothrow) HotItem[kHotRows]);
+    publish(current_,"正在获取 AI 热榜","loading");
+    std::unique_ptr<HotItem[]> items(new(std::nothrow)HotItem[kHotRows]);
     if(!items){publish(current_,"内存不足","error");return;}
-    hot_=items.get();hotCount_=hotIndex_=0;
+    hot_=items.get();hotCount_=hotIndex_=hotUpdated_=0;
     for(;;){
         bool ok=true;
-        if(!strncmp(current_.operation,"item:",5)&&hotCount_)hotIndex_=std::min<unsigned>(atoi(current_.operation+5),hotCount_-1);
-        else if(!(ok=hotBoard())&&!cancelled())publish(current_,"百度热搜获取失败","error");
+        if(!strncmp(current_.operation,"item:",5)&&hotCount_){hotIndex_=std::min<unsigned>(atoi(current_.operation+5),hotCount_-1);ok=hotDetail();}
+        else if(!hotCount_||!hotUpdated_||time(nullptr)>=hotUpdated_+60)ok=hotBoard();
         if(cancelled())break;
-        if(ok)publish(current_,"已更新","ready");
+        if(ok)publish(current_,hotCount_?"已更新":"暂无热点","ready");
+        else if(hotCount_&&strncmp(current_.operation,"item:",5))publish(current_,"更新失败，显示缓存","ready");
+        else publish(current_,hotCount_?"事件摘要获取失败":"AI 热榜获取失败","error");
         Job action{};
         while(!cancelled()&&(xQueueReceive(actions_,&action,pdMS_TO_TICKS(50))!=pdTRUE||action.generation!=current_.generation)){}
         if(cancelled())break;

@@ -195,6 +195,40 @@
         "desktop_only",
         "no_firmware_changes"
       ]
+    },
+    {
+      "id": "R05",
+      "task_type": "aihot_events_and_firmware_package",
+      "match_keywords": [
+        "AIHOT",
+        "aihot.news",
+        "AI 热榜",
+        "hot_board.hpp",
+        "firmware package",
+        "package_firmware.py"
+      ],
+      "negative_keywords": [],
+      "route_priority": 90,
+      "first_read_modules": [
+        "aihot_events"
+      ],
+      "expand_to_modules": [],
+      "pitfall_ids": [
+        "P05"
+      ],
+      "expand_search_codes": [
+        "read_reference_map_first"
+      ],
+      "stop_and_verify_codes": [
+        "run_minimum_regression"
+      ],
+      "fact_check_codes": [
+        "read_reference_map_first"
+      ],
+      "scope_flags": [
+        "subtree_only",
+        "host_and_build_evidence_only"
+      ]
     }
   ]
 }

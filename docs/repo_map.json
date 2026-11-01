@@ -386,6 +386,121 @@
         ],
         "unsampled_paths": []
       }
+    },
+    {
+      "id": "aihot_events",
+      "name": "AIHOT events",
+      "path": "firmware/passport_device/main/hot_board.hpp",
+      "kind": "firmware_feature",
+      "purpose": "Bounded AIHOT Top 10 list and lazy event summaries over device Wi-Fi, plus reproducible local build and packaging.",
+      "module_tags": [
+        "AIHOT",
+        "JSON",
+        "Wi-Fi",
+        "hot"
+      ],
+      "entry_files": [
+        "docs/aihot.md",
+        "firmware/passport_device/main/hot_board.hpp"
+      ],
+      "key_symbols": [
+        "AihotJson",
+        "NativeServices::hotBoard",
+        "NativeServices::hotDetail",
+        "drawHotDetail"
+      ],
+      "child_modules": [],
+      "first_read_files": [
+        "docs/aihot.md",
+        "firmware/passport_device/main/hot_board.hpp",
+        "firmware/passport_device/main/native_services.cpp"
+      ],
+      "then_check_files": [
+        "firmware/passport_device/main/native_services.hpp",
+        "firmware/passport_connectivity/main/live_services.cpp",
+        "firmware/passport_suite/main/apps.hpp",
+        "firmware/passport_suite/main/suite.hpp",
+        "firmware/passport_suite/main/suite.cpp",
+        "firmware/passport_suite/main/voice_add.hpp",
+        "firmware/passport_suite/main/ui.cpp",
+        "docs/aihot.zh_CN.md",
+        "docs/local-development.md",
+        "docs/local-development.zh_CN.md",
+        "docs/flash-guide.md",
+        "docs/flash-guide.zh_CN.md",
+        "README.md",
+        "README.zh_CN.md",
+        "HANDOFF.md",
+        "HANDOFF.zh_CN.md"
+      ],
+      "upstream_dependencies": [],
+      "downstream_dependencies": [],
+      "out_of_scope_dependencies": [
+        "AIHOT API availability and use rules",
+        "Installed device partition compatibility",
+        "Physical TLS, display, audio, and memory behavior"
+      ],
+      "related_tests": [
+        "tests/test_passport_aihot.py"
+      ],
+      "related_configs": [
+        "firmware/passport_device/CMakeLists.txt",
+        "scripts/build_passport_suite.sh",
+        "requirements-dev.txt",
+        "tools/activate-local.sh",
+        "tools/validate.sh",
+        "tools/package_firmware.py",
+        "tools/browser-update.html"
+      ],
+      "risk_flags": [
+        "source_count_is_not_heat",
+        "trusted_story_id_only",
+        "bounded_streaming_parser",
+        "physical_validation_pending",
+        "erase_choice_must_stay_unchecked"
+      ],
+      "edit_risk": "medium",
+      "blast_radius": [
+        "Hot list and detail pages",
+        "Shared live status fields",
+        "Local build and firmware delivery"
+      ],
+      "pitfall_ids": [
+        "P05"
+      ],
+      "minimum_regression": [
+        ".venv/bin/python tests/test_passport_aihot.py -v",
+        "bash scripts/build_passport_suite.sh device",
+        ".venv/bin/python tools/package_firmware.py"
+      ],
+      "routing_confidence": "high",
+      "scope_flags": [
+        "subtree_only",
+        "host_and_build_evidence_only"
+      ],
+      "grounding": {
+        "fact_status": "grounded",
+        "evidence": [
+          "firmware/passport_device/main/hot_board.hpp",
+          "firmware/passport_device/main/native_services.cpp",
+          "firmware/passport_device/main/native_services.hpp",
+          "firmware/passport_connectivity/main/live_services.cpp",
+          "firmware/passport_suite/main/apps.hpp",
+          "firmware/passport_suite/main/suite.hpp",
+          "firmware/passport_suite/main/suite.cpp",
+          "firmware/passport_suite/main/voice_add.hpp",
+          "firmware/passport_suite/main/ui.cpp",
+          "tests/test_passport_aihot.py",
+          "firmware/passport_device/CMakeLists.txt",
+          "scripts/build_passport_suite.sh",
+          "requirements-dev.txt",
+          "tools/activate-local.sh",
+          "tools/validate.sh",
+          "tools/package_firmware.py",
+          "tools/browser-update.html"
+        ],
+        "unsampled_paths": []
+      }
     }
   ]
 }

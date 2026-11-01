@@ -195,6 +195,8 @@ esp_err_t LiveServices::receive(httpd_req_t* request) {
 void LiveServices::request(const char* operation) {
     // A refresh (by the timer, an error retry or entering) of 自选股 is for what is on screen.
     char stock[16];
+    // A refreshed AIHOT board invalidates details even if the selected rank stays unchanged.
+    if(runtime_.active()==App::Hot&&(!strcmp(operation,"refresh")||!strcmp(operation,"enter")))hotAsked_=-1;
     // A delete ("del:<row>") fetches the list too.
     if(runtime_.active()==App::Stock){if(!strcmp(operation,"refresh")||!strcmp(operation,"enter")){stockOperation(runtime_.model,stock);operation=stock;}
         if(!strncmp(operation,"del:",4))stockOperation(runtime_.model,stockAsked_);else copy(stockAsked_,operation);}
@@ -638,12 +640,13 @@ bool LiveServices::tick(uint64_t now) {
                 if(model.typhoonIndex>=t.count)model.typhoonIndex=0;
             }
             if(active==App::Hot&&cJSON_IsObject(field(json,"hot"))){
-                // Rows: [title, heat, tag]; item i in full.
+                // Rows: [title, independent sources, reserved tag]; selected event details.
                 auto& m=model;auto& h=m.page.hot;const auto* o=field(json,"hot");const cJSON* row;
                 m.hotCount=0;
                 cJSON_ArrayForEach(row,field(o,"r"))if(m.hotCount<kHotRows){auto& r=h.rows[m.hotCount++];const char* title=cJSON_GetStringValue(cJSON_GetArrayItem(row,0));copy(r.title,title?title:"");
                     const auto* heat=cJSON_GetArrayItem(row,1);r.score=cJSON_IsNumber(heat)?std::clamp(heat->valuedouble,0.0,4e9):0;const auto* tag=cJSON_GetArrayItem(row,2);r.tag=cJSON_IsNumber(tag)?std::clamp(tag->valuedouble,0.0,255.0):0;}
                 const double i=number(o,"i",-1);h.detailFor=i>=0&&i<m.hotCount?uint8_t(i):255;copy(h.title,string(o,"t"));copy(h.desc,string(o,"d"));
+                copy(h.source,string(o,"s"));h.updated=std::max(0.0,number(o,"u",0));
                 m.hotUpdated=std::max(0.0,number(o,"at",0));
                 if(m.hotIndex>=m.hotCount){m.hotIndex=0;}if(!m.hotCount){m.hotDetail=false;}
             }
@@ -722,9 +725,9 @@ bool LiveServices::tick(uint64_t now) {
     if(active==App::Stock&&!pending_&&!voiceJob_){char want[16];stockOperation(model,want);if(strcmp(want,stockAsked_)){request(want);dirty=true;}}
     if(active==App::Macro&&!voiceJob_&&!model.voiceBusy()){char want[16];macroOperation(model,want);if(strcmp(want,macroAsked_)){request(want);dirty=true;}}
     if(active==App::Quiz&&model.quizWant&&!quizAsked_&&!pending_){quizAsked_=true;request("next");dirty=true;}
-    // 台风: the picked typhoon's track; 热榜: the picked item in full (the device holds the board, so no download).
+    // 台风: the picked typhoon's track; AIHOT: fetch the selected event summary only in the detail view.
     if(active==App::Typhoon&&!pending_&&model.page.typhoon.count&&model.typhoonIndex!=typhoonAsked_){request("refresh");dirty=true;}
-    if(active==App::Hot&&!pending_&&model.hotCount&&model.hotIndex!=model.page.hot.detailFor&&model.hotIndex!=hotAsked_){
+    if(active==App::Hot&&model.hotDetail&&!pending_&&model.hotCount&&model.hotIndex!=model.page.hot.detailFor&&model.hotIndex!=hotAsked_){
         hotAsked_=model.hotIndex;char operation[12];snprintf(operation,sizeof(operation),"item:%u",model.hotIndex);request(operation);dirty=true;}
     // 预警: the text of the warning shown, once per opening.
     if(active==App::Forecast&&!pending_){const auto& f=model.page.forecast;const uint8_t want=model.forecastWarn;
